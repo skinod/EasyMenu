@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin name="Easy Menu" version_long="10000" version_human="1.0.0" author="Sijad aka Mr.Wosi" website="http://skinod..com" update_check="http://skinod.com/updatechk/easymenus"><hooks><hook type="C" class="\IPS\Application"><![CDATA[//<?php
+
+class hook49 extends _HOOK_CLASS_
+{
+	public static function allExtensions( $app, $extension, $checkAccess=TRUE, $firstApp=NULL, $firstExtensionKey=NULL, $construct=TRUE, $checkEnabled=TRUE )
+	{
+		try
+		{
+			$lines = \IPS\Settings::i()->sod_easy_menu_lines;
+			$links = false;
+			if(\IPS\Settings::i()->sod_easy_menu_active && $app == 'core' && $extension == 'FrontNavigation' && !empty($lines)) {
+				$links = array();
+				require_once \IPS\ROOT_PATH . '/system/3rd_party/sod/easymenu.php';
+				$parent = parent::allExtensions( $app, $extension, $checkAccess, $firstApp, $firstExtensionKey, $construct, $checkEnabled );
+				// $app_keys = array_map(create_function('$a', 'return \strtolower($a);'), array_keys($parent));
+				$app_keys = array_map('strtolower', array_keys($parent));
+				$lines = explode("\n", $lines);
+				$mparent = false;
+				foreach ($lines as $line) {
+					@list($name, $link, $groups) = array_map('trim', explode('|', $line));
+					if(!empty($name)) {
+						$is_child = false;
+						$menu = false;
+						// check if it's a sub
+						if(\strpos($name, '--') === 0) {
+							if($mparent) {
+								$name = \substr($name, 2);
+								$is_child = true;
+							}else{
+								continue;
+							}
+						}
+	
+						// check if it's an application fist
+						if(\strpos($name, '{') === 0 && \strpos($name, '}') === \strlen($name) - 1) {
+							//it's an app
+							$name = \substr($name, 1, -1);
+							foreach ($parent as $k => $v) {
+								if(\strpos(\strtolower($k), $name) === 0) {
+									if($menu) {
+										$links[] = $menu;
+									}
+									$menu = new \easyMenu($v->title(), $v->link(), $v->canView(), $v->active(), $v->children());
+								}
+								// if(\strtolower($k) == $name)
+							}
+						}elseif(!empty($link)) {
+							$groups = empty($groups)?array():explode(',', $groups);
+							if(count($groups) && !\IPS\Member::loggedIn()->inGroup($groups, TRUE)) {
+								continue;
+							}
+							$menu = new \easyMenu(\IPS\Member::loggedIn()->language()->addToStack($name), \IPS\Http\Url::external($link), true, false);
+						}
+	
+						if(!$menu) {
+							continue;
+						}
+	
+						if($is_child) {
+							$mparent->addChild($menu);
+						}else{
+							$links[] = $mparent = $menu;  // NOTE: in navBar.phtml the $id will change to uniqid() so it doesn't matter;
+						}
+					}
+				}
+			}}
+			catch ( \RuntimeException $e )
+			{
+				return call_user_func_array( 'parent::' . __FUNCTION__, func_get_args() );
+			}
+		return $links?:parent::allExtensions( $app, $extension, $checkAccess, $firstApp, $firstExtensionKey, $construct, $checkEnabled );
+	}
+}]]></hook></hooks><settings><setting><key>sod_easy_menu_lines</key><default/></setting><setting><key>sod_easy_menu_active</key><default>0</default></setting></settings><settingsCode><![CDATA[//<?php
+
+function sod_easy_menu_help() {
+	\IPS\Settings::i()->sod_easy_menu_active = 0;
+	$apps = \IPS\Application::allExtensions( 'core', 'FrontNavigation' );
+	$txt = array();
+	foreach ($apps as $k => $v) {
+		$k = explode('_', $k);
+		$txt[$k[0]] = '{' . $k[0] . '}<br>';
+	}
+	return implode('', $txt);
+}
+
+$form->add( new \IPS\Helpers\Form\YesNo( 'sod_easy_menu_active', \IPS\Settings::i()->sod_easy_menu_active ) );
+$form->add( new \IPS\Helpers\Form\TextArea( 'sod_easy_menu_lines', \IPS\Settings::i()->sod_easy_menu_lines, false, array('rows' => 5 ) ) );
+$form->add( new \IPS\Helpers\Form\Custom( 'sod_easy_menu_help', '', false, array( 'getHtml' => 'sod_easy_menu_help' ) ) );
+
+
+if ( $values = $form->values() )
+{
+	$form->saveAsSettings();
+	return TRUE;
+}
+
+return $form;]]></settingsCode><htmlFiles/><cssFiles/><jsFiles/><resourcesFiles><resources filename="sitemap.php">PD9waHAK</resources></resourcesFiles><lang><word key="sod_easy_menu_lines" js="0">Menu Links</word><word key="sod_easy_menu_lines_desc" js="0"><![CDATA[You can add new links to main navigation, each line is a link<br>syntax for new link:<br>Link Name|Link Source|<abbr title='Who can view this link (optional)'>Groups ID</abbr></pre><br>For add a new submenu you can add '<code><b>--</b></code>' to first of the line & for add an application link just use {app_name}]]></word><word key="sod_easy_menu_active" js="0">Active Easy Menu</word><word key="sod_easy_menu_help" js="0">Available Applications</word></lang><versions><version long="10000" human="1.0.0"><![CDATA[//<?php
+
+
+/* To prevent PHP errors (extending class does not exist) revealing path */
+if ( !defined( '\IPS\SUITE_UNIQUE_KEY' ) )
+{
+	header( ( isset( $_SERVER['SERVER_PROTOCOL'] ) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0' ) . ' 403 Forbidden' );
+	exit;
+}
+
+/**
+ * Install Code
+ */
+class ips_plugins_setup_install
+{
+	/**
+	 * ...
+	 *
+	 * @return	array	If returns TRUE, upgrader will proceed to next step. If it returns any other value, it will set this as the value of the 'extra' GET parameter and rerun this step (useful for loops)
+	 */
+	public function step1()
+	{
+		
+	}
+	
+	// You can create as many additional methods (step2, step3, etc.) as is necessary.
+	// Each step will be executed in a new HTTP request
+}]]></version></versions></plugin>
